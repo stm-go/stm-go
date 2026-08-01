@@ -2,16 +2,21 @@
 
 ## Visão Geral
 
-Este template realiza o monitoramento do **Veeam Backup & Replication 13** utilizando a **REST API** oficial do produto.
+O **Veeam VBR13 By HTTP** é um template para monitoramento do **Veeam Backup & Replication 13** utilizando exclusivamente a **REST API oficial** do produto.
 
-A coleta é realizada diretamente via **HTTP Agent** do Zabbix, dispensando a instalação de agentes adicionais no servidor Veeam.
+O template foi desenvolvido para funcionar através de **HTTP Agent**, eliminando a necessidade de instalar agentes adicionais ou executar scripts externos.
+
+## Funcionalidades
 
 Atualmente o template contempla:
 
-- Autenticação automática via API (Bearer Token)
-- Descoberta e monitoramento dos Jobs
-- Descoberta e monitoramento dos Repositórios (Repositories)
-- Coleta de informações do servidor Veeam
+- ✅ Autenticação automática via Bearer Token
+- ✅ Descoberta automática (LLD) dos Jobs
+- ✅ Descoberta automática (LLD) dos Repositórios
+- ✅ Informações gerais do servidor Veeam
+- ✅ Informações da licença
+- ✅ Coleta de métricas de execução dos Jobs
+- ✅ Coleta de utilização dos Repositórios
 
 ---
 
@@ -24,9 +29,34 @@ Atualmente o template contempla:
 
 Permissões mínimas recomendadas:
 
-- Veeam Backup Viewer
+- **Veeam Backup Viewer**
 
-ou superior.
+ou qualquer perfil superior.
+
+---
+
+# Estrutura do Template
+
+## Itens principais
+
+| Item | Descrição |
+|------|-----------|
+| VBR Get/Update Token | Obtém e renova automaticamente o Bearer Token |
+| VBR Get Jobs | Consulta todos os Jobs |
+| VBR Get Repositories | Consulta todos os Repositórios |
+| VBR Get ServerInfo | Consulta informações gerais do servidor |
+| VBR Get License: Expiration Date | Consulta a data de expiração da licença |
+
+---
+
+## Regras de Descoberta (LLD)
+
+O template realiza descoberta automática para:
+
+- Jobs
+- Repositórios
+
+Não é necessário criar itens manualmente para novos Jobs ou novos Repositórios.
 
 ---
 
@@ -34,32 +64,28 @@ ou superior.
 
 ## Jobs
 
-O template utiliza o endpoint abaixo para obter o estado de todos os Jobs.
-
 ```
 GET /api/v1/jobs/states
 ```
 
-Descrição oficial:
+Obtém o estado de todos os Jobs cadastrados no ambiente.
 
-> Obtém o estado de todos os Jobs cadastrados no Veeam Backup & Replication.
+Informações coletadas:
 
-As informações retornadas incluem:
-
-- Nome do Job
+- Nome
+- Tipo
 - Status
 - Última execução
 - Próxima execução
 - Resultado da última execução
 - Duração
-- Taxa de processamento
 - Percentual
+- Taxa de processamento
 - Volume processado
 - Volume transferido
 - Repositório utilizado
-- Tipo do Job
 
-Permissões necessárias:
+Permissões aceitas:
 
 - Veeam Backup Administrator
 - Veeam Backup Operator
@@ -72,27 +98,23 @@ Permissões necessárias:
 
 ## Repositórios
 
-Para monitoramento dos repositórios é utilizado:
-
 ```
 GET /api/v1/backupInfrastructure/repositories/states
 ```
 
-Descrição oficial:
+Obtém informações dos repositórios cadastrados.
 
-> Obtém o estado de todos os repositórios cadastrados no ambiente.
-
-As informações incluem:
+Informações coletadas:
 
 - Nome
 - Localização
 - Espaço Total
-- Espaço Utilizado
 - Espaço Livre
+- Espaço Utilizado
 - Percentual de utilização
-- Estado do repositório
+- Estado do Repositório
 
-Permissões necessárias:
+Permissões aceitas:
 
 - Veeam Backup Administrator
 - Veeam Backup Operator
@@ -102,50 +124,54 @@ Permissões necessárias:
 
 ---
 
-# Estrutura do Template
+## Informações do Servidor
 
-O template possui atualmente quatro itens principais.
+O template consulta informações gerais do servidor Veeam para disponibilizar dados adicionais em futuras versões.
 
-| Item | Descrição |
-|------|-----------|
-| VBR Get Token | Obtém e renova automaticamente o Bearer Token |
-| VBR Get Jobs | Consulta todos os Jobs |
-| VBR Get Repositories | Consulta todos os Repositórios |
-| VBR Get ServerInfo | Consulta informações gerais do servidor |
+---
+
+## Licenciamento
+
+O template também consulta informações da licença instalada.
+
+Entre elas:
+
+- Data de expiração
+- Tempo restante até o vencimento (quando configurado)
+
+Permitindo criar dashboards e triggers para alertar sobre licenças próximas do vencimento.
 
 ---
 
 # Autenticação
 
-A autenticação é realizada automaticamente através da API do Veeam.
+O template realiza autenticação automática utilizando a API REST do Veeam.
 
 Fluxo:
 
-```
+```text
 Zabbix
-    │
-    ▼
+   │
+   ▼
 Solicita Token
-    │
-    ▼
+   │
+   ▼
 REST API Veeam
-    │
-    ▼
+   │
+   ▼
 Bearer Token
-    │
-    ▼
+   │
+   ▼
 Consultas HTTP Agent
 ```
 
-O token é renovado automaticamente pelo template.
+A renovação do token é automática e transparente.
 
 ---
 
 # Pré-processamento
 
-Grande parte das informações retornadas pela API são convertidas para facilitar a utilização em dashboards e triggers.
-
-Exemplos:
+Diversos valores retornados pela API são convertidos para formatos mais úteis para gráficos e triggers.
 
 ## Última execução
 
@@ -155,14 +181,15 @@ Entrada:
 2026-07-24T22:00:15.057882-03:00
 ```
 
-Pode ser convertida para:
+Pode ser utilizada para calcular:
 
-- Timestamp Unix
 - Tempo desde a última execução
+- Data da última execução
+- SLA de backups
 
 ---
 
-## Duração
+## Duração do Job
 
 Entrada:
 
@@ -180,7 +207,8 @@ Permitindo:
 
 - gráficos
 - médias
-- triggers de backup demorado
+- comparação entre execuções
+- triggers para backups demorados
 
 ---
 
@@ -202,25 +230,45 @@ Armazenada como **Numeric (Float)** em MB/s.
 
 ---
 
+## Expiração da licença
+
+Entrada:
+
+```
+2028-04-30T00:00:00Z
+```
+
+Pode ser convertida para:
+
+- Dias restantes
+- Segundos restantes
+- Tempo restante
+
+Facilitando a criação de alertas preventivos.
+
+---
+
 # Possíveis evoluções
 
-O template foi desenvolvido de forma modular, permitindo adicionar facilmente novos monitoramentos da API, como por exemplo:
+A estrutura foi desenvolvida de forma modular para facilitar a inclusão de novos recursos da API oficial do Veeam.
 
-- Backup Copy Jobs
+Entre eles:
+
 - Backup Sessions
+- Backup Copy Jobs
 - Agents
 - NAS Backup
 - SureBackup
 - Scale-Out Backup Repository
-- Proxies
-- Backup Infrastructure
-- Licenciamento
-- Alarmes
-- Capacity Tier
+- Backup Proxies
 - Object Storage
+- Capacity Tier
+- Alarmes
+- Licenciamento avançado
+- Estatísticas históricas
 
 ---
 
 # Objetivo
 
-Disponibilizar um template simples, leve e totalmente baseado na REST API oficial do Veeam, facilitando a criação de dashboards, gráficos e alertas dentro do Zabbix, sem necessidade de scripts externos ou agentes adicionais.
+Disponibilizar um template simples, leve e totalmente baseado na **REST API oficial do Veeam Backup & Replication**, permitindo monitoramento centralizado no Zabbix sem utilização de scripts externos, proporcionando fácil manutenção, alta compatibilidade e expansão futura.
